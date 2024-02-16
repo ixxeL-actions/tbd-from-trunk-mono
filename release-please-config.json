@@ -9,7 +9,8 @@
       "prerelease": true,
       "prerelease-type": "beta",
       "include-component-in-tag": false,
-      "include-v-in-tag": true
+      "include-v-in-tag": true,
+      "versioning": "toto"
     }
   },
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"

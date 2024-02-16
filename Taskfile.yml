@@ -1,0 +1,59 @@
+# https://taskfile.dev
+
+version: "3"
+
+tasks:
+  goreleaser:
+    desc: Run GoReleaser either in snapshot or release mode
+    vars:
+      SNAPSHOT:
+        sh: 'if [[ $GITHUB_REF != refs/tags/v* ]]; then echo "--snapshot"; fi'
+    cmds:
+      - goreleaser release --clean --debug --timeout 60m {{.SNAPSHOT}}
+
+  version:
+    desc: Get current version
+    vars:
+      CURRENT:
+        sh: svu current
+    cmds:
+      - echo {{.CURRENT}}
+
+  prerelease:
+    desc: Get next release tag
+    vars:
+      NEXT:
+        sh: svu prerelease --pre-release=rc
+    cmds:
+      - echo {{.NEXT}}
+
+  release:
+    desc: Get next release tag
+    vars:
+      NEXT:
+        sh: svu n
+    cmds:
+      - echo {{.NEXT}}
+
+  tag-prerelease:
+    desc: Create prerelease tag
+    vars:
+      NEXT:
+        sh: svu prerelease --pre-release=rc
+    cmds:
+      - git tag {{.NEXT}}
+      - echo {{.NEXT}}
+      - git push origin --tags
+
+  tag-release:
+    desc: Create release tag
+    vars:
+      NEXT:
+        sh: svu n
+    cmds:
+      - git tag {{.NEXT}}
+      - echo {{.NEXT}}
+      - git push origin --tags
+
+
+
