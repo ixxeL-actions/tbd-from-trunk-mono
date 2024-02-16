@@ -1,67 +1,147 @@
-name: Release New Version
+name: Release
 
-# Triggers the workflow when a push happens
 on:
   push:
     branches:
-      - main
+      - "main"
+    tags:
+      - "v*"
 
 permissions:
   contents: write
-  pull-requests: write      
+  id-token: write
+  packages: write
 
 jobs:
-  release:
+  goreleaser:
     runs-on: ubuntu-latest
-    name: Release
     steps:
-      - name: Fetch Git entire history for all branches and tags
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install svu
+        if: startsWith(github.ref, 'refs/heads/')
+        run: |
+          echo 'deb [trusted=yes] https://apt.fury.io/caarlos0/ /' | sudo tee /etc/apt/sources.list.d/caarlos0.list
+          sudo apt update
+          sudo apt install svu
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: stable
+    
+      - name: GoReleaser check
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          install-only: true
+
+      - id: snapshot
+        if: startsWith(github.ref, 'refs/heads/')
+        run: |
+          SNAPSHOT_VERSION=$(task release)
+          echo "SNAPSHOT_VERSION=$SNAPSHOT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set GORELEASER_PREVIOUS_TAG # Workaround, GoReleaser uses 'git-describe' to determine a previous tag. Our tags are created in realease branches.
+        if: startsWith(github.ref, 'refs/tags/') && "${{ github.ref }}" =~ ^refs/tags/back-v[0-9]+\.[0-9]+\.[0-9]+$
+        run: |
+          set -xue
+          if echo ${{ github.ref_name }} | grep -Ee '-rc[0-9\.]+$';then
+            echo "This is a release candidate"
+            echo "GORELEASER_PREVIOUS_TAG=$(git -c 'versionsort.suffix=-rc' tag --list --sort=version:refname | grep -E "back-v[0-9]*.[0-9]*.[0-9]*-rc[0-9]*" | tail -n 2 | head -n 1)" >> $GITHUB_ENV
+          else
+            echo "This is a final release"
+            echo "GORELEASER_PREVIOUS_TAG=$(git -c 'versionsort.suffix=-rc' tag --list --sort=version:refname | grep -E "back-v[0-9]*.[0-9]*.[0-9]*\$" | tail -n 2 | head -n 1)" >> $GITHUB_ENV
+          fi
+
+      - name: goreleaser-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SNAPSHOT_VERSION: ${{ steps.snapshot.outputs.SNAPSHOT_VERSION }}
+        run: task goreleaser
+
+  post-release:
+    needs:
+      - goreleaser
+    permissions:
+      contents: write # Needed to push commit to update stable tag
+      pull-requests: write # Needed to create PR for VERSION update.
+    runs-on: ubuntu-22.04
+    if: startsWith(github.ref, 'refs/tags/') && "${{ github.ref }}" =~ ^refs/tags/back-v[0-9]+\.[0-9]+\.[0-9]+$
+    steps:
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Semantic Release
-        uses: cycjimmy/semantic-release-action@v4
-        with:
-          extra_plugins: |
-            @semantic-release/exec
-            @semantic-release/github
-        env:
-          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: Use Node v18
-      #   uses: actions/setup-node@v3
-      #   with:
-      #     node-version: 18
+      - name: Setup Git author information
+        run: |
+          set -ue
+          git config --global user.email "ci@ixxel.com"
+          git config --global user.name "CI"
 
-      # - name: Install Dependencies
-      #   run: npm install
+      - name: Check if tag is the latest version and not a pre-release
+        id: check-tag
+        run: |
+          set -xue
+          # Fetch all tag information
+          git fetch --prune --tags --force
 
-      # - name: Run Semantic Release
-      #   run: nxp semantic release
+          LATEST_TAG=$(git -c 'versionsort.suffix=-rc' tag --list --sort=version:refname | tail -n1)
 
-# ---
-# name: Release-Please
-# on:
-#   push:
-#     branches:
-#       - main
+          PRE_RELEASE="false"
+          # Check if latest tag is a pre-release
+          if echo $LATEST_TAG | grep -Ee '-rc[0-9\.]+$';then
+            PRE_RELEASE="true"
+          fi
 
-# permissions:
-#   contents: write
-#   pull-requests: write
+          # Ensure latest tag matches github.ref_name & not a pre-release
+          if [[ $LATEST_TAG == ${{ github.ref_name }} ]] && [[ "$PRE_RELEASE" != 'true' ]];then
+            TAG_STABLE="true"
+          else
+            TAG_STABLE="false"
+          fi
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "TAG_STABLE=$TAG_STABLE" >> $GITHUB_OUTPUT
 
-# jobs:
-#   release-please:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: google-github-actions/release-please-action@v4
-#         id: release
-#         with:
-#           # release-type: simple
-#           token: ${{ secrets.ADMIN_TOKEN }}
-#           config-file: release-please-config.json
-#           manifest-file: .release-please-manifest.json
-#       - name: Test build
-#         if: ${{ steps.release.outputs.release_created }}
-#         run: |
-#           echo "THIS IS THE PACKAGE THAT WILL BE BUILT : ${{ steps.release.outputs.tag_name }}"
+      - name: Extract tags
+        if: ${{ steps.check-tag.outputs.TAG_STABLE == 'true' }}
+        id: extract-tags
+        run: |
+
+          major_version=$(echo "${{ steps.check-tag.outputs.LATEST_TAG }}" | awk -F. '{print $1}')
+          minor_version=$(echo "${{ steps.check-tag.outputs.LATEST_TAG }}" | awk -F. '{print $1"."$2}')
+
+          echo "MAJOR_TAG=$major_version" >> $GITHUB_OUTPUT
+          echo "MINOR_TAG=$minor_version" >> $GITHUB_OUTPUT
+      
+      - name: Show extracted tags
+        if: ${{ steps.check-tag.outputs.TAG_STABLE == 'true' }}
+        run: |
+          echo "Major Version: ${{ steps.extract-tags.outputs.MAJOR_TAG }}"
+          echo "Minor Version: ${{ steps.extract-tags.outputs.MINOR_TAG }}"
+
+      - name: Update stable tag to latest version
+        if: ${{ steps.check-tag.outputs.TAG_STABLE == 'true' }}
+        run: |
+          git tag -f ${{ steps.extract-tags.outputs.MAJOR_TAG }} ${{ github.ref_name }}
+          git tag -f ${{ steps.extract-tags.outputs.MINOR_TAG }} ${{ github.ref_name }}
+          git tag -f latest ${{ github.ref_name }}
+          git push -f origin --tags
+        
