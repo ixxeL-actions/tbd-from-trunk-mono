@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0-beta.2](https://github.com/ixxeL-actions/tbd-from-trunk-mono/compare/v0.3.0-beta.1...v0.3.0-beta.2) (2024-02-16)
+
+
+### Features
+
+* reset6 ([580960c](https://github.com/ixxeL-actions/tbd-from-trunk-mono/commit/580960c777ab541c54a65715fdb861971febad46))
+
 ## [0.3.0-beta.1](https://github.com/ixxeL-actions/tbd-from-trunk-mono/compare/v0.3.0-beta...v0.3.0-beta.1) (2024-02-16)
 
 
