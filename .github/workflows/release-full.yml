@@ -1,5 +1,6 @@
----
-name: Release-Please
+name: Release New Version
+
+# Triggers the workflow when a push happens
 on:
   push:
     branches:
@@ -7,20 +8,52 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
+  pull-requests: write      
 
 jobs:
-  release-please:
+  release:
     runs-on: ubuntu-latest
+    name: Release
     steps:
-      - uses: google-github-actions/release-please-action@v4
-        id: release
+      - name: Fetch Git entire history for all branches and tags
+        uses: actions/checkout@v4
         with:
-          # release-type: simple
-          token: ${{ secrets.ADMIN_TOKEN }}
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-      - name: Test build
-        if: ${{ steps.release.outputs.release_created }}
-        run: |
-          echo "THIS IS THE PACKAGE THAT WILL BE BUILT : ${{ steps.release.outputs.tag_name }}"
+          fetch-depth: 0
+
+      - name: Use Node v18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Semantic Release
+        run: nxp semantic release
+
+# ---
+# name: Release-Please
+# on:
+#   push:
+#     branches:
+#       - main
+
+# permissions:
+#   contents: write
+#   pull-requests: write
+
+# jobs:
+#   release-please:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: google-github-actions/release-please-action@v4
+#         id: release
+#         with:
+#           # release-type: simple
+#           token: ${{ secrets.ADMIN_TOKEN }}
+#           config-file: release-please-config.json
+#           manifest-file: .release-please-manifest.json
+#       - name: Test build
+#         if: ${{ steps.release.outputs.release_created }}
+#         run: |
+#           echo "THIS IS THE PACKAGE THAT WILL BE BUILT : ${{ steps.release.outputs.tag_name }}"
