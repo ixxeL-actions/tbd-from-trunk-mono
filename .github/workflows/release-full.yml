@@ -1,0 +1,27 @@
+---
+name: Release-Please
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/release-please-action@v4
+        id: release
+        with:
+          release-type: simple
+          default-branch: main
+          token: ${{ secrets.ADMIN_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - name: Test build
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          echo "THIS IS THE PACKAGE THAT WILL BE BUILT : ${{ steps.release.outputs.tag_name }}"
