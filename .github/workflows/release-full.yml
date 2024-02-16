@@ -21,6 +21,10 @@ jobs:
           fetch-depth: 0
       - name: Semantic Release
         uses: cycjimmy/semantic-release-action@v4
+        with:
+          extra_plugins: |
+            @semantic-release/exec
+            @semantic-release/github
         env:
           GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
 
