@@ -9,7 +9,7 @@ tasks:
       SNAPSHOT:
         sh: 'if [[ $GITHUB_REF != refs/tags/v* ]]; then echo "--snapshot"; fi'
     cmds:
-      - goreleaser release --clean --debug --timeout 60m {{.SNAPSHOT}} --skip validate
+      - goreleaser release --clean --debug --timeout 60m {{.SNAPSHOT}}
 
   version:
     desc: Get current version

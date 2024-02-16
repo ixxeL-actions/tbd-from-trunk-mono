@@ -6,7 +6,8 @@ builds:
 dist: goreleaser
 
 snapshot:
-  name_template: "{{ .Env.SNAPSHOT_VERSION }}-SNAPSHOT-{{.ShortCommit}}"
+  # name_template: "{{ .Env.SNAPSHOT_VERSION }}-SNAPSHOT-{{.ShortCommit}}"
+  name_template: "{{ .Version }}"
 
 git:
   tag_sort: -version:refname
